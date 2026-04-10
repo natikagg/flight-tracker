@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 """
 Flight Tracker — proxy server.
-- Serves static files
-- Proxies /api/flights → OpenSky Network API
-- Server-side cache: returns cached data if < 8 seconds old
-  so the client can poll every 5s without burning rate limits.
-
-Usage:  python3 server.py
-        Open http://localhost:8080
+Serves static files + proxies /api/flights → OpenSky Network API.
 """
 
-import json, math, time, urllib.request, urllib.parse, urllib.error
+import json, math, time, urllib.request, urllib.parse, urllib.error, os
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
-PORT       = int(__import__('os').environ.get('PORT', 8080))
-OPENSKY    = 'https://opensky-network.org/api/states/all'
-CACHE_TTL  = 8   # seconds — OpenSky updates every ~5-10s anyway
+PORT      = int(os.environ.get('PORT', 8080))
+OPENSKY   = 'https://opensky-network.org/api/states/all'
+CACHE_TTL = 8
 
-# Cache: key = rounded bbox string → (bytes, timestamp)
 _cache: dict = {}
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (compatible; FlightTracker/1.0)',
+    'Accept': 'application/json',
+    'Accept-Language': 'en-US,en;q=0.9',
+}
 
 
 def fetch_opensky(lat: float, lon: float, radius_km: float) -> bytes:
@@ -27,23 +26,22 @@ def fetch_opensky(lat: float, lon: float, radius_km: float) -> bytes:
     lamin, lamax = lat - delta_lat, lat + delta_lat
     lomin, lomax = lon - delta_lon, lon + delta_lon
 
-    # Round to 2 decimal places for cache key (≈1km grid)
     key = f'{lamin:.2f},{lomin:.2f},{lamax:.2f},{lomax:.2f}'
     now = time.monotonic()
 
     if key in _cache:
         data, ts = _cache[key]
         if now - ts < CACHE_TTL:
-            return data          # serve cached
+            return data
 
     url = (f'{OPENSKY}?lamin={lamin:.6f}&lomin={lomin:.6f}'
            f'&lamax={lamax:.6f}&lomax={lomax:.6f}')
-    req = urllib.request.Request(url, headers={'User-Agent': 'FlightTracker/1.0'})
-    with urllib.request.urlopen(req, timeout=20) as resp:
+
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=25) as resp:
         data = resp.read()
 
     _cache[key] = (data, now)
-    # Evict old entries to avoid unbounded growth
     for k in [k for k, (_, t) in _cache.items() if now - t > 120]:
         del _cache[k]
 
@@ -68,17 +66,29 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(400, {'error': 'Missing or invalid lat/lon'})
             return
 
-        try:
-            data = fetch_opensky(lat, lon, radius_km)
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(data)
-        except urllib.error.HTTPError as e:
-            self._json(502, {'error': f'OpenSky HTTP {e.code}'})
-        except Exception as e:
-            self._json(502, {'error': str(e)})
+        # Try up to 2 times (handles transient OpenSky blips)
+        last_err = 'Unknown error'
+        for attempt in range(2):
+            try:
+                data = fetch_opensky(lat, lon, radius_km)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(data)
+                return
+            except urllib.error.HTTPError as e:
+                body = e.read().decode(errors='ignore')[:200]
+                last_err = f'OpenSky returned HTTP {e.code}: {body}'
+                print(f'[OpenSky] HTTP {e.code} on attempt {attempt+1}: {body}')
+                if e.code == 429:
+                    time.sleep(2)   # back off briefly on rate limit
+            except Exception as e:
+                last_err = str(e)
+                print(f'[OpenSky] Error on attempt {attempt+1}: {e}')
+                time.sleep(1)
+
+        self._json(502, {'error': last_err})
 
     def _json(self, code, obj):
         body = json.dumps(obj).encode()
@@ -89,14 +99,12 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt, *args):
-        if args and '/api/' in str(args[0]):
-            print(f'[{time.strftime("%H:%M:%S")}] {args[0]}')
+        print(f'[{time.strftime("%H:%M:%S")}] {fmt % args}')
 
 
 if __name__ == '__main__':
     server = HTTPServer(('', PORT), Handler)
-    print(f'✈  Flight Tracker  →  http://localhost:{PORT}')
-    print(f'   OpenSky cache TTL: {CACHE_TTL}s  |  Ctrl+C to stop\n')
+    print(f'✈  Flight Tracker → http://localhost:{PORT}')
     try:
         server.serve_forever()
     except KeyboardInterrupt:
