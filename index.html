@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Flight Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── SIDEBAR ─────────────────────────────────────── -->
+  <aside id="sidebar">
+
+    <header id="sidebar-header">
+      <div id="brand">
+        <svg id="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M21 16l-9-9-9 9M3 16l4-4 5 1.5L17 8l4 8"/>
+        </svg>
+        <span id="brand-name">FlightTracker</span>
+      </div>
+      <div id="stats-row">
+        <div class="stat-pill">
+          <span id="count-number">—</span>
+          <span class="stat-label">aircraft</span>
+        </div>
+        <div class="stat-pill">
+          <span id="radius-value">50</span>
+          <span class="stat-label">km radius</span>
+        </div>
+      </div>
+    </header>
+
+    <div id="refresh-bar">
+      <div id="refresh-track"><div id="refresh-fill"></div></div>
+      <span id="refresh-label">—</span>
+    </div>
+
+    <div id="status-banner" class="hidden">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="status-icon-svg">
+        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+      </svg>
+      <span id="status-message"></span>
+    </div>
+
+    <div id="list-header">
+      <span>Nearby Aircraft</span>
+      <span id="list-sort-label">by distance</span>
+    </div>
+
+    <div id="aircraft-list-wrapper">
+      <div id="aircraft-list">
+        <div class="empty-state">
+          <div class="empty-icon">📡</div>
+          <div class="empty-title">Acquiring location</div>
+          <div class="empty-sub">Please allow location access</div>
+        </div>
+      </div>
+    </div>
+
+    <footer id="sidebar-footer">
+      <span>Data: <a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky Network</a></span>
+      <span>Map: <a href="https://carto.com" target="_blank" rel="noopener">CARTO</a></span>
+    </footer>
+
+  </aside>
+
+  <!-- ── MAP ────────────────────────────────────────── -->
+  <main id="map-wrap">
+    <div id="map"></div>
+
+    <div id="map-overlay">
+      <div id="overlay-card">
+        <div class="spinner"></div>
+        <p id="overlay-message">Detecting your location…</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

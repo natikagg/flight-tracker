@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: flight-tracker-proxy
+    runtime: python
+    buildCommand: echo "no build needed"
+    startCommand: python3 server.py
+    plan: free
